@@ -565,10 +565,31 @@ void dt_view_manager_configure (dt_view_manager_t *vm, int width, int height)
 
 void dt_view_manager_scrolled (dt_view_manager_t *vm, double x, double y, int up, int state)
 {
+ 
   if(vm->current_view < 0) return;
   dt_view_t *v = vm->view + vm->current_view;
-  if(v->scrolled)
+
+  /* lets check if any plugins want to handle button press */
+  gboolean handled = FALSE;
+  GList *plugins = g_list_last(darktable.lib->plugins);
+  while (plugins && !handled)
+  {
+    dt_lib_module_t *plugin = (dt_lib_module_t *)(plugins->data);
+
+    /* does this module belong to current view ?*/
+    if (plugin->scrolled && plugin->views() & v->view(v) )
+      if(plugin->scrolled(plugin, x, y, up,state))
+        handled = TRUE;
+
+    /* get next plugin */
+    plugins = g_list_previous(plugins);
+  }
+
+  /* if not handled by any plugin let pass to view handler*/
+  if(!handled && v->scrolled)
     v->scrolled(v, x, y, up, state);
+
+  return;
 }
 
 void dt_view_manager_border_scrolled (dt_view_manager_t *vm, double x, double y, int which, int up)

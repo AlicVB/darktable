@@ -104,7 +104,7 @@ typedef struct dt_lib_module_t
   int  (*mouse_moved)     (struct dt_lib_module_t *self, double x, double y, int which);
   int  (*button_released) (struct dt_lib_module_t *self, double x, double y, int which, uint32_t state);
   int  (*button_pressed)  (struct dt_lib_module_t *self, double x, double y, int which, int type, uint32_t state);
-  int  (*scrolled)        (struct dt_lib_module_t *self, double x, double y, int up);
+  int  (*scrolled)        (struct dt_lib_module_t *self, double x, double y, int up, uint32_t state);
   void (*configure)       (struct dt_lib_module_t *self, int width, int height);
   int  (*position)        ();
   /** implement these three if you want customizable presets to be stored in db. */
