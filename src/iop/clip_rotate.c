@@ -59,6 +59,7 @@ typedef enum dt_iop_rotate_flags_t
 
 typedef struct dt_iop_rotate_params_t
 {
+  int autodetect;
   float angle;
   int crop_auto;
   dt_iop_rotate_flags_t flip;
@@ -82,6 +83,7 @@ typedef struct dt_iop_rotate_data_t
 
 typedef struct dt_iop_rotate_gui_data_t
 {
+  GtkWidget *rotauto;
   GtkWidget *angle;
   GtkWidget *hvflip;
   GtkWidget *crop_auto;
@@ -110,7 +112,10 @@ typedef struct dt_iop_rotate_iop_clipping_params_t
   int ratio_n, ratio_d;
 } dt_iop_rotate_iop_clipping_params_t;
 
-
+typedef struct dt_iop_rotate_iop_flip_params_t
+{
+  dt_image_orientation_t orientation;
+} dt_iop_rotate_iop_flip_params_t;
 
 const char *name()
 {
@@ -138,9 +143,82 @@ int operation_tags_filter()
   return IOP_TAG_DECORATION;
 }
 
+static void _iop_rotate_add_flip(dt_iop_rotate_flags_t *flip, dt_iop_rotate_flags_t added_flip)
+{
+  if(added_flip == FLAG_FLIP_HORIZONTAL || added_flip == FLAG_FLIP_BOTH)
+  {
+    if(*flip == FLAG_FLIP_NONE)
+      *flip = FLAG_FLIP_HORIZONTAL;
+    else if(*flip == FLAG_FLIP_HORIZONTAL)
+      *flip = FLAG_FLIP_NONE;
+    else if(*flip == FLAG_FLIP_VERTICAL)
+      *flip = FLAG_FLIP_BOTH;
+    else if(*flip == FLAG_FLIP_BOTH)
+      *flip = FLAG_FLIP_VERTICAL;
+  }
+  if(added_flip == FLAG_FLIP_VERTICAL || added_flip == FLAG_FLIP_BOTH)
+  {
+    if(*flip == FLAG_FLIP_NONE)
+      *flip = FLAG_FLIP_VERTICAL;
+    else if(*flip == FLAG_FLIP_HORIZONTAL)
+      *flip = FLAG_FLIP_BOTH;
+    else if(*flip == FLAG_FLIP_VERTICAL)
+      *flip = FLAG_FLIP_NONE;
+    else if(*flip == FLAG_FLIP_BOTH)
+      *flip = FLAG_FLIP_HORIZONTAL;
+  }
+}
+
+static void _iop_rotate_autodetect(struct dt_iop_module_t *self, dt_iop_rotate_params_t *p)
+{
+  if(p->autodetect)
+  {
+    p->angle = 0.0f;
+    p->flip = FLAG_FLIP_NONE;
+    if(self->dev)
+    {
+      dt_image_orientation_t orientation = dt_image_orientation(&self->dev->image_storage);
+      switch(orientation)
+      {
+        case ORIENTATION_FLIP_HORIZONTALLY:
+          _iop_rotate_add_flip(&p->flip, FLAG_FLIP_HORIZONTAL);
+          break;
+        case ORIENTATION_FLIP_VERTICALLY:
+          _iop_rotate_add_flip(&p->flip, FLAG_FLIP_VERTICAL);
+          break;
+        case ORIENTATION_ROTATE_CCW_90_DEG:
+          p->angle -= 90.0f;
+          break;
+        case ORIENTATION_ROTATE_CW_90_DEG:
+          p->angle += 90.0f;
+          break;
+        case ORIENTATION_ROTATE_180_DEG:
+          p->angle += 180.0f;
+          break;
+        case ORIENTATION_SWAP_XY:
+          _iop_rotate_add_flip(&p->flip, FLAG_FLIP_HORIZONTAL);
+          p->angle += 90.0f;
+          break;
+        case ORIENTATION_421:
+          _iop_rotate_add_flip(&p->flip, FLAG_FLIP_VERTICAL);
+          p->angle += 90.0f;
+          break;
+        default:
+          // nothing to do
+          break;
+      }
+      // sanitize angle
+      if(p->angle > 180.0f)
+        p->angle -= 360.0f;
+      else if(p->angle < -180.0f)
+        p->angle += 360.0f;
+    }
+  }
+}
 int accept_extern_params(struct dt_iop_module_t *self, char *iop_name, int params_version)
 {
   if(strcmp(iop_name, "clipping") == 0 && params_version == 5) return 1;
+  if(strcmp(iop_name, "flip") == 0 && params_version == 2) return 1;
   return 0;
 }
 
@@ -162,49 +240,92 @@ int handle_extern_params(struct dt_iop_module_t *self, char *iop_name, void *pre
     }
     else
     {
-      dt_iop_rotate_params_t tmp = (dt_iop_rotate_params_t){ 0.0f, 1, 0, 0.0f, 0.0f };
+      dt_iop_rotate_params_t tmp = (dt_iop_rotate_params_t){ 1, 0.0f, 1, 0, 0.0f, 0.0f };
       memcpy(n_params, &tmp, sizeof(dt_iop_rotate_params_t));
     }
 
     // and we include clipping iop params
+    n_params->autodetect = 0;
     n_params->angle += clipping_params->angle;
     n_params->crop_auto = clipping_params->crop_auto;
     n_params->key_h = clipping_params->k_h;
     n_params->key_v = clipping_params->k_v;
 
     if(clipping_params->cw < 0 && clipping_params->ch < 0)
-    {
-      if(n_params->flip == FLAG_FLIP_NONE)
-        n_params->flip = FLAG_FLIP_BOTH;
-      else if(n_params->flip == FLAG_FLIP_HORIZONTAL)
-        n_params->flip = FLAG_FLIP_VERTICAL;
-      else if(n_params->flip == FLAG_FLIP_VERTICAL)
-        n_params->flip = FLAG_FLIP_HORIZONTAL;
-      else if(n_params->flip == FLAG_FLIP_BOTH)
-        n_params->flip = FLAG_FLIP_NONE;
-    }
+      _iop_rotate_add_flip(&n_params->flip, FLAG_FLIP_BOTH);
     else if(clipping_params->cw < 0)
-    {
-      if(n_params->flip == FLAG_FLIP_NONE)
-        n_params->flip = FLAG_FLIP_HORIZONTAL;
-      else if(n_params->flip == FLAG_FLIP_HORIZONTAL)
-        n_params->flip = FLAG_FLIP_NONE;
-      else if(n_params->flip == FLAG_FLIP_VERTICAL)
-        n_params->flip = FLAG_FLIP_BOTH;
-      else if(n_params->flip == FLAG_FLIP_BOTH)
-        n_params->flip = FLAG_FLIP_VERTICAL;
-    }
+      _iop_rotate_add_flip(&n_params->flip, FLAG_FLIP_HORIZONTAL);
     else if(clipping_params->ch < 0)
+      _iop_rotate_add_flip(&n_params->flip, FLAG_FLIP_VERTICAL);
+
+    // sanitize angle
+    if(n_params->angle > 180.0f)
+      n_params->angle -= 360.0f;
+    else if(n_params->angle < -180.0f)
+      n_params->angle += 360.0f;
+
+    return 1;
+  }
+  else if(strcmp(iop_name, "flip") == 0)
+  {
+    dt_iop_rotate_params_t *p_params = NULL;
+    if(previous_params) p_params = (dt_iop_rotate_params_t *)previous_params;
+    dt_iop_rotate_params_t *n_params = (dt_iop_rotate_params_t *)new_params;
+    dt_iop_rotate_iop_flip_params_t *flip_params = (dt_iop_rotate_iop_flip_params_t *)extern_params;
+
+    // new params initialisation
+    if(p_params)
     {
-      if(n_params->flip == FLAG_FLIP_NONE)
-        n_params->flip = FLAG_FLIP_VERTICAL;
-      else if(n_params->flip == FLAG_FLIP_HORIZONTAL)
-        n_params->flip = FLAG_FLIP_BOTH;
-      else if(n_params->flip == FLAG_FLIP_VERTICAL)
-        n_params->flip = FLAG_FLIP_NONE;
-      else if(n_params->flip == FLAG_FLIP_BOTH)
-        n_params->flip = FLAG_FLIP_HORIZONTAL;
+      memcpy(n_params, p_params, sizeof(dt_iop_rotate_params_t));
     }
+    else
+    {
+      dt_iop_rotate_params_t tmp = (dt_iop_rotate_params_t){ 1, 0.0f, 1, 0, 0.0f, 0.0f };
+      memcpy(n_params, &tmp, sizeof(dt_iop_rotate_params_t));
+    }
+
+    // and we include flip iop params
+    dt_image_orientation_t orientation = flip_params->orientation;
+    if(orientation == ORIENTATION_NULL && self->dev)
+      orientation = dt_image_orientation(&self->dev->image_storage);
+
+    switch(orientation)
+    {
+      case ORIENTATION_NULL:
+        n_params->autodetect = 1;
+        break;
+      case ORIENTATION_FLIP_HORIZONTALLY:
+        _iop_rotate_add_flip(&n_params->flip, FLAG_FLIP_HORIZONTAL);
+        break;
+      case ORIENTATION_FLIP_VERTICALLY:
+        _iop_rotate_add_flip(&n_params->flip, FLAG_FLIP_VERTICAL);
+        break;
+      case ORIENTATION_ROTATE_CCW_90_DEG:
+        n_params->angle -= 90.0f;
+        break;
+      case ORIENTATION_ROTATE_CW_90_DEG:
+        n_params->angle += 90.0f;
+        break;
+      case ORIENTATION_ROTATE_180_DEG:
+        n_params->angle += 180.0f;
+        break;
+      case ORIENTATION_SWAP_XY:
+        _iop_rotate_add_flip(&n_params->flip, FLAG_FLIP_HORIZONTAL);
+        n_params->angle += 90.0f;
+        break;
+      case ORIENTATION_421:
+        _iop_rotate_add_flip(&n_params->flip, FLAG_FLIP_VERTICAL);
+        n_params->angle += 90.0f;
+        break;
+      default:
+        // nothing
+        break;
+    }
+    // sanitize angle
+    if(n_params->angle > 180.0f)
+      n_params->angle -= 360.0f;
+    else if(n_params->angle < -180.0f)
+      n_params->angle += 360.0f;
 
     return 1;
   }
@@ -694,6 +815,7 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
 int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_mem dev_in, cl_mem dev_out,
                const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
 {
+
   dt_iop_rotate_data_t *d = (dt_iop_rotate_data_t *)piece->data;
   dt_iop_rotate_global_data_t *gd = (dt_iop_rotate_global_data_t *)self->data;
 
@@ -827,6 +949,9 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
   dt_iop_rotate_params_t *p = (dt_iop_rotate_params_t *)p1;
   dt_iop_rotate_data_t *d = (dt_iop_rotate_data_t *)piece->data;
 
+  // ensure taht we have right values, if autodetect mode
+  _iop_rotate_autodetect(self, p);
+
   // copy unchanged values
   d->angle = M_PI / 180.0 * p->angle;
   d->flip = p->flip;
@@ -891,16 +1016,73 @@ void cleanup_pipe(struct dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev
 
 void reload_defaults(dt_iop_module_t *self)
 {
-  dt_iop_rotate_params_t tmp = (dt_iop_rotate_params_t){ 0.0f, 1, 0, 0.0f, 0.0f };
+  dt_iop_rotate_params_t tmp = (dt_iop_rotate_params_t){ 1, 0.0f, 1, 0, 0.0f, 0.0f };
+
+  if(self->dev)
+  {
+    self->default_enabled = 1;
+
+    if(self->dev->image_storage.legacy_flip.user_flip != 0
+       && self->dev->image_storage.legacy_flip.user_flip != 0xff)
+    {
+      sqlite3_stmt *stmt;
+      DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
+                                  "select * from history where imgid = ?1 and operation = 'rotate'", -1,
+                                  &stmt, NULL);
+      DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, self->dev->image_storage.id);
+      if(sqlite3_step(stmt) != SQLITE_ROW)
+      {
+        // convert the old legacy flip bits to a proper parameter set:
+        dt_image_orientation_t orientation = dt_image_orientation(&self->dev->image_storage);
+        _iop_rotate_add_orientations(
+            &orientation, (dt_image_orientation_t)(self->dev->image_storage.legacy_flip.user_flip));
+        tmp.autodetect = 0;
+        switch(orientation)
+        {
+          case ORIENTATION_FLIP_HORIZONTALLY:
+            tmp.flip = FLAG_FLIP_HORIZONTAL;
+            break;
+          case ORIENTATION_FLIP_VERTICALLY:
+            tmp.flip = FLAG_FLIP_VERTICAL;
+            break;
+          case ORIENTATION_ROTATE_CCW_90_DEG:
+            tmp.angle = -90.0f;
+            break;
+          case ORIENTATION_ROTATE_CW_90_DEG:
+            tmp.angle = 90.0f;
+            break;
+          case ORIENTATION_ROTATE_180_DEG:
+            tmp.angle = 180.0f;
+            break;
+          case ORIENTATION_SWAP_XY:
+            tmp.flip = FLAG_FLIP_HORIZONTAL;
+            tmp.angle = 90.0f;
+            break;
+          case ORIENTATION_421:
+            tmp.flip = FLAG_FLIP_VERTICAL;
+            tmp.angle = 90.0f;
+            break;
+          default:
+            // nothing to do
+            break;
+        }
+      }
+      sqlite3_finalize(stmt);
+    }
+  }
+
   memcpy(self->params, &tmp, sizeof(dt_iop_rotate_params_t));
   memcpy(self->default_params, &tmp, sizeof(dt_iop_rotate_params_t));
-  self->default_enabled = 0;
 }
 
 void gui_update(struct dt_iop_module_t *self)
 {
   dt_iop_rotate_gui_data_t *g = (dt_iop_rotate_gui_data_t *)self->gui_data;
   dt_iop_rotate_params_t *p = (dt_iop_rotate_params_t *)self->params;
+
+  /* rotation autodetection */
+  dt_bauhaus_combobox_set(g->rotauto, p->autodetect);
+  _iop_rotate_autodetect(self, p);
 
   /* update ui elements */
   dt_bauhaus_slider_set(g->angle, -p->angle);
@@ -938,8 +1120,20 @@ static void _iop_rotate_angle_callback(GtkWidget *slider, dt_iop_module_t *self)
 {
   if(self->dt->gui->reset) return;
   dt_iop_rotate_params_t *p = (dt_iop_rotate_params_t *)self->params;
+  dt_iop_rotate_gui_data_t *g = (dt_iop_rotate_gui_data_t *)self->gui_data;
   if(dt_bauhaus_slider_get(slider) == -p->angle) return; // no change
   p->angle = -dt_bauhaus_slider_get(slider);
+  dt_bauhaus_combobox_set(g->rotauto, 0);
+  dt_dev_add_history_item(darktable.develop, self, TRUE);
+}
+
+static void _iop_rotate_rotauto_callback(GtkWidget *widget, dt_iop_module_t *self)
+{
+  if(self->dt->gui->reset) return;
+  dt_iop_rotate_params_t *p = (dt_iop_rotate_params_t *)self->params;
+  if(dt_bauhaus_combobox_get(widget) == p->autodetect) return; // no change
+  p->autodetect = dt_bauhaus_combobox_get(widget);
+  if(p->autodetect) gui_update(self);
 
   dt_dev_add_history_item(darktable.develop, self, TRUE);
 }
@@ -948,9 +1142,10 @@ static void _iop_rotate_hvflip_callback(GtkWidget *widget, dt_iop_module_t *self
 {
   if(self->dt->gui->reset) return;
   dt_iop_rotate_params_t *p = (dt_iop_rotate_params_t *)self->params;
+  dt_iop_rotate_gui_data_t *g = (dt_iop_rotate_gui_data_t *)self->gui_data;
   if(dt_bauhaus_combobox_get(widget) == p->flip) return; // no change
   p->flip = dt_bauhaus_combobox_get(widget);
-
+  dt_bauhaus_combobox_set(g->rotauto, 0);
   dt_dev_add_history_item(darktable.develop, self, TRUE);
 }
 
@@ -987,6 +1182,14 @@ void gui_init(struct dt_iop_module_t *self)
   g->rotate_ini[1] = NAN;
 
   self->widget = gtk_box_new(GTK_ORIENTATION_VERTICAL, DT_BAUHAUS_SPACE);
+  g->rotauto = dt_bauhaus_combobox_new(self);
+  dt_bauhaus_widget_set_label(g->rotauto, NULL, _("mode"));
+  dt_bauhaus_combobox_add(g->rotauto, _("manual"));
+  dt_bauhaus_combobox_add(g->rotauto, _("automatic"));
+  g_signal_connect(G_OBJECT(g->rotauto), "value-changed", G_CALLBACK(_iop_rotate_rotauto_callback), self);
+  gtk_widget_set_tooltip_text(g->rotauto, _("automatic mode use camera settings"));
+  gtk_box_pack_start(GTK_BOX(self->widget), g->rotauto, TRUE, TRUE, 0);
+
   g->hvflip = dt_bauhaus_combobox_new(self);
   dt_bauhaus_widget_set_label(g->hvflip, NULL, _("flip"));
   dt_bauhaus_combobox_add(g->hvflip, _("none"));

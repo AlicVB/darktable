@@ -86,7 +86,8 @@ int operation_tags()
 
 int flags()
 {
-  return IOP_FLAGS_ALLOW_TILING | IOP_FLAGS_TILING_FULL_ROI | IOP_FLAGS_ONE_INSTANCE;
+  return IOP_FLAGS_ALLOW_TILING | IOP_FLAGS_TILING_FULL_ROI | IOP_FLAGS_ONE_INSTANCE | IOP_FLAGS_REPLACED
+         | IOP_FLAGS_DEPRECATED;
 }
 
 static dt_image_orientation_t merge_two_orientations(dt_image_orientation_t raw_orientation,
@@ -401,7 +402,7 @@ void reload_defaults(dt_iop_module_t *self)
   // we might be called from presets update infrastructure => there is no image
   if(!self->dev) goto end;
 
-  self->default_enabled = 1;
+  self->default_enabled = 0;
 
   if(self->dev->image_storage.legacy_flip.user_flip != 0
      && self->dev->image_storage.legacy_flip.user_flip != 0xff)
@@ -414,7 +415,7 @@ void reload_defaults(dt_iop_module_t *self)
     if(sqlite3_step(stmt) != SQLITE_ROW)
     {
       // convert the old legacy flip bits to a proper parameter set:
-      self->default_enabled = 1;
+      self->default_enabled = 0;
       tmp.orientation
           = merge_two_orientations(dt_image_orientation(&self->dev->image_storage),
                                    (dt_image_orientation_t)(self->dev->image_storage.legacy_flip.user_flip));
