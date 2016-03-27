@@ -292,7 +292,6 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
 
   const int bpp = sizeof(float) * piece->colors;
   const int stride = bpp * roi_in->width;
-
   dt_imageio_flip_buffers((char *)ovoid, (const char *)ivoid, bpp, roi_in->width, roi_in->height,
                           roi_in->width, roi_in->height, stride, d->orientation);
 }
