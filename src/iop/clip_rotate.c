@@ -101,6 +101,17 @@ typedef struct dt_iop_rotate_global_data_t
   int kernel_flip;
 } dt_iop_rotate_global_data_t;
 
+typedef struct dt_iop_rotate_iop_clipping_params_t
+{
+  float angle, cx, cy, cw, ch, k_h, k_v;
+  float kxa, kya, kxb, kyb, kxc, kyc, kxd, kyd;
+  int k_type, k_sym;
+  int k_apply, crop_auto;
+  int ratio_n, ratio_d;
+} dt_iop_rotate_iop_clipping_params_t;
+
+
+
 const char *name()
 {
   return _("rotate");
@@ -125,6 +136,79 @@ int operation_tags_filter()
 {
   // switch off watermark, it gets confused.
   return IOP_TAG_DECORATION;
+}
+
+int accept_extern_params(struct dt_iop_module_t *self, char *iop_name, int params_version)
+{
+  if(strcmp(iop_name, "clipping") == 0 && params_version == 5) return 1;
+  return 0;
+}
+
+int handle_extern_params(struct dt_iop_module_t *self, char *iop_name, void *previous_params,
+                         void *extern_params, void *new_params)
+{
+  if(strcmp(iop_name, "clipping") == 0)
+  {
+    dt_iop_rotate_params_t *p_params = NULL;
+    if(previous_params) p_params = (dt_iop_rotate_params_t *)previous_params;
+    dt_iop_rotate_params_t *n_params = (dt_iop_rotate_params_t *)new_params;
+    dt_iop_rotate_iop_clipping_params_t *clipping_params
+        = (dt_iop_rotate_iop_clipping_params_t *)extern_params;
+
+    // new params initialisation
+    if(p_params)
+    {
+      memcpy(n_params, p_params, sizeof(dt_iop_rotate_params_t));
+    }
+    else
+    {
+      dt_iop_rotate_params_t tmp = (dt_iop_rotate_params_t){ 0.0f, 1, 0, 0.0f, 0.0f };
+      memcpy(n_params, &tmp, sizeof(dt_iop_rotate_params_t));
+    }
+
+    // and we include clipping iop params
+    n_params->angle += clipping_params->angle;
+    n_params->crop_auto = clipping_params->crop_auto;
+    n_params->key_h = clipping_params->k_h;
+    n_params->key_v = clipping_params->k_v;
+
+    if(clipping_params->cw < 0 && clipping_params->ch < 0)
+    {
+      if(n_params->flip == FLAG_FLIP_NONE)
+        n_params->flip = FLAG_FLIP_BOTH;
+      else if(n_params->flip == FLAG_FLIP_HORIZONTAL)
+        n_params->flip = FLAG_FLIP_VERTICAL;
+      else if(n_params->flip == FLAG_FLIP_VERTICAL)
+        n_params->flip = FLAG_FLIP_HORIZONTAL;
+      else if(n_params->flip == FLAG_FLIP_BOTH)
+        n_params->flip = FLAG_FLIP_NONE;
+    }
+    else if(clipping_params->cw < 0)
+    {
+      if(n_params->flip == FLAG_FLIP_NONE)
+        n_params->flip = FLAG_FLIP_HORIZONTAL;
+      else if(n_params->flip == FLAG_FLIP_HORIZONTAL)
+        n_params->flip = FLAG_FLIP_NONE;
+      else if(n_params->flip == FLAG_FLIP_VERTICAL)
+        n_params->flip = FLAG_FLIP_BOTH;
+      else if(n_params->flip == FLAG_FLIP_BOTH)
+        n_params->flip = FLAG_FLIP_VERTICAL;
+    }
+    else if(clipping_params->ch < 0)
+    {
+      if(n_params->flip == FLAG_FLIP_NONE)
+        n_params->flip = FLAG_FLIP_VERTICAL;
+      else if(n_params->flip == FLAG_FLIP_HORIZONTAL)
+        n_params->flip = FLAG_FLIP_BOTH;
+      else if(n_params->flip == FLAG_FLIP_VERTICAL)
+        n_params->flip = FLAG_FLIP_NONE;
+      else if(n_params->flip == FLAG_FLIP_BOTH)
+        n_params->flip = FLAG_FLIP_HORIZONTAL;
+    }
+
+    return 1;
+  }
+  return 0;
 }
 
 static void _iop_rotate_add_orientations(dt_image_orientation_t *orientation,
