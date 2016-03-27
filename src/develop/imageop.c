@@ -177,6 +177,16 @@ static int default_distort_backtransform(dt_iop_module_t *self, dt_dev_pixelpipe
   return 1;
 }
 
+static int default_accept_extern_params(dt_iop_module_t *self, char *iop_name, int params_version)
+{
+  return 0;
+}
+static int default_handle_extern_params(dt_iop_module_t *self, char *iop_name, void *previous_params,
+                                        void *extern_params, void *new_params)
+{
+  return 0;
+}
+
 static void default_process(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece,
                             const void *const i, void *const o, const struct dt_iop_roi_t *const roi_in,
                             const struct dt_iop_roi_t *const roi_out)
@@ -310,6 +320,11 @@ int dt_iop_load_module_so(dt_iop_module_so_t *module, const char *libname, const
   if(!g_module_symbol(module->module, "distort_backtransform", (gpointer) & (module->distort_backtransform)))
     module->distort_backtransform = default_distort_backtransform;
 
+  if(!g_module_symbol(module->module, "accept_extern_params", (gpointer) & (module->accept_extern_params)))
+    module->accept_extern_params = default_accept_extern_params;
+  if(!g_module_symbol(module->module, "handle_extern_params", (gpointer) & (module->handle_extern_params)))
+    module->handle_extern_params = default_handle_extern_params;
+
   if(!g_module_symbol(module->module, "modify_roi_in", (gpointer) & (module->modify_roi_in)))
     module->modify_roi_in = dt_iop_modify_roi_in;
   if(!g_module_symbol(module->module, "modify_roi_out", (gpointer) & (module->modify_roi_out)))
@@ -418,6 +433,8 @@ static int dt_iop_load_module_by_so(dt_iop_module_t *module, dt_iop_module_so_t 
   module->process_tiling_cl = so->process_tiling_cl;
   module->distort_transform = so->distort_transform;
   module->distort_backtransform = so->distort_backtransform;
+  module->accept_extern_params = so->accept_extern_params;
+  module->handle_extern_params = so->handle_extern_params;
   module->modify_roi_in = so->modify_roi_in;
   module->modify_roi_out = so->modify_roi_out;
   module->legacy_params = so->legacy_params;

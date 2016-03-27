@@ -91,7 +91,8 @@ typedef enum dt_iop_flags_t
   IOP_FLAGS_PREVIEW_NON_OPENCL
   = 1 << 8, // Preview pixelpipe of this module must not run on GPU but always on CPU
   IOP_FLAGS_NO_HISTORY_STACK = 1 << 9, // This iop will never show up in the history stack
-  IOP_FLAGS_NO_MASKS = 1 << 10         // The module doesn't support masks (used with SUPPORT_BLENDING)
+  IOP_FLAGS_NO_MASKS = 1 << 10,        // The module doesn't support masks (used with SUPPORT_BLENDING)
+  IOP_FLAGS_REPLACED = 1 << 11         // The module is deprecated but replaced by other one(s)
 } dt_iop_flags_t;
 
 /** status of a module*/
@@ -223,6 +224,10 @@ typedef struct dt_iop_module_so_t
                            size_t points_count);
   int (*distort_backtransform)(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece,
                                float *points, size_t points_count);
+
+  int (*accept_extern_params)(struct dt_iop_module_t *self, char *iop_name, int params_version);
+  int (*handle_extern_params)(struct dt_iop_module_t *self, char *iop_name, void *previous_params,
+                              void *extern_params, void *new_params);
 
   // introspection related callbacks
   gboolean have_introspection;
@@ -426,6 +431,13 @@ typedef struct dt_iop_module_t
   /** reverse points after the iop is applied => point before process */
   int (*distort_backtransform)(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece,
                                float *points, size_t points_count);
+
+  /** this function is used by iop which want to handle params of a module with REPLACED flag
+   * return 0 if nothing has been done
+   * otherwise return 1*/
+  int (*accept_extern_params)(struct dt_iop_module_t *self, char *iop_name, int params_version);
+  int (*handle_extern_params)(struct dt_iop_module_t *self, char *iop_name, void *previous_params,
+                              void *extern_params, void *new_params);
 
   /** Key accelerator registration callbacks */
   void (*connect_key_accels)(struct dt_iop_module_t *self);

@@ -183,6 +183,12 @@ int distort_transform(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_
 int distort_backtransform(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece, float *points,
                           size_t points_count);
 
+/** this function is used by iop which want to handle params of a module with REPLACED flag
+ * return 0 if nothing has been done
+ * otherwise return 1*/
+int accept_extern_params(struct dt_iop_module_t *self, char *iop_name, int params_version);
+int handle_extern_params(struct dt_iop_module_t *self, char *iop_name, void *previous_params,
+                         void *extern_params, void *new_params);
 
 // introspection related callbacks, will be auto-implemented if DT_MODULE_INTROSPECTION() is used,
 int introspection_init(struct dt_iop_module_so_t *self, int api_version);

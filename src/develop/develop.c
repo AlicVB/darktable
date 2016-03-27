@@ -786,6 +786,7 @@ void dt_dev_pop_history_items(dt_develop_t *dev, int32_t cnt)
 
     history = g_list_next(history);
   }
+
   // update all gui modules
   modules = dev->iop;
   while(modules)
@@ -979,6 +980,103 @@ static void auto_apply_presets(dt_develop_t *dev)
   dt_image_cache_write_release(darktable.image_cache, image, DT_IMAGE_CACHE_SAFE);
 }
 
+static void _dt_dev_handle_replaced_history(dt_develop_t *dev)
+{
+  // this should be called once we have load the complete history stack, with last versions of params and so
+  // on
+  // if there's history items from a "replaced" iop, we will add replacement history items
+  // and rempove all occurence of the "replaced" one
+
+  // we handle iop replacements
+  // we go throught all entries, in reverse order
+  int history_changed = 0;
+  GList *hists = g_list_last(dev->history);
+  while(hists)
+  {
+    dt_dev_history_item_t *hist = (dt_dev_history_item_t *)hists->data;
+    if(hist->module->flags() & IOP_FLAGS_REPLACED)
+    {
+      history_changed = 1;
+      char *op = strdup(hist->module->op);
+      if(hist->enabled)
+      {
+        // we go throught all modules to find one who handle this params
+        GList *modules = dev->iop;
+        while(modules)
+        {
+          dt_iop_module_t *module = (dt_iop_module_t *)modules->data;
+          if(module->accept_extern_params(module, op, hist->module->version()))
+          {
+            // we found one who accept to handle our replaced params
+            // we search for other history entries of this module (to meld them)
+            dt_dev_history_item_t *found_hist = NULL;
+            GList *hists2 = g_list_last(dev->history);
+            while(hists2)
+            {
+              dt_dev_history_item_t *hist2 = (dt_dev_history_item_t *)hists2->data;
+              if(strcmp(hist2->module->op, module->op) == 0 && hist2->enabled)
+              {
+                found_hist = hist2;
+                break;
+              }
+              hists2 = g_list_previous(hists2);
+            }
+
+            // we create a new history entry and populate it
+            dt_dev_history_item_t *new_h = (dt_dev_history_item_t *)calloc(1, sizeof(dt_dev_history_item_t));
+            new_h->module = module;
+            new_h->enabled = 1;
+            new_h->multi_priority = 0;
+            if(hist->multi_name)
+              snprintf(new_h->multi_name, sizeof(new_h->multi_name), "%s", hist->multi_name);
+            else
+              memset(new_h->multi_name, 0, sizeof(new_h->multi_name));
+            new_h->params = calloc(1, new_h->module->params_size);
+            new_h->blend_params = calloc(1, sizeof(dt_develop_blend_params_t));
+            memcpy(new_h->blend_params, hist->blend_params, sizeof(dt_develop_blend_params_t));
+
+            if(found_hist)
+              module->handle_extern_params(module, op, found_hist->params, hist->params, new_h->params);
+            else
+              module->handle_extern_params(module, op, NULL, hist->params, new_h->params);
+
+            dev->history = g_list_append(dev->history, new_h);
+          }
+          modules = g_list_next(modules);
+        }
+      }
+      // we remove all entry of same replaced module
+      GList *hists2 = g_list_first(dev->history);
+      while(hists2)
+      {
+        GList *next = g_list_next(hists2);
+        dt_dev_history_item_t *hist2 = (dt_dev_history_item_t *)hists2->data;
+        if(strcmp(hist2->module->op, op) == 0)
+        {
+          free(hist2->params);
+          free(hist2->blend_params);
+          free(hists2->data);
+          dev->history = g_list_delete_link(dev->history, hists2);
+        }
+        hists2 = next;
+      }
+      free(op);
+      // we go back to the end of the history list
+      hists = g_list_last(dev->history);
+    }
+    else
+    {
+      hists = g_list_previous(hists);
+    }
+  }
+  // if we have changed the history, we want to save it
+  if(history_changed)
+  {
+    dev->history_end = g_list_length(dev->history);
+    dt_dev_write_history(dev);
+  }
+}
+
 void dt_dev_read_history(dt_develop_t *dev)
 {
   if(dev->image_storage.id <= 0) return;
@@ -1170,6 +1268,9 @@ void dt_dev_read_history(dt_develop_t *dev)
     if(sqlite3_column_type(stmt, 0) != SQLITE_NULL)
       dev->history_end = sqlite3_column_int(stmt, 0);
   }
+
+  // we take care of "replaced" iop
+  _dt_dev_handle_replaced_history(dev);
 
   if(dev->gui_attached)
   {
