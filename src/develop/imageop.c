@@ -255,8 +255,7 @@ void dt_iop_default_init(dt_iop_module_t *module)
         size_t num_ints = i->header.size / sizeof(int);
 
         int *p = module->default_params + i->header.offset;
-        for (size_t c = element_size; c < num_ints; c++, p++) 
-          p[element_size] = *p;
+        for(size_t c = element_size; c < num_ints; c++, p++) p[element_size] = *p;
       }
       break;
     case DT_INTROSPECTION_TYPE_STRUCT:
@@ -323,7 +322,7 @@ int dt_iop_load_module_so(void *m, const char *libname, const char *op)
     module->gui_update = NULL;
   if(!g_module_symbol(module->module, "color_picker_apply", (gpointer) & (module->color_picker_apply)))
     module->color_picker_apply = NULL;
-  if(!g_module_symbol(module->module, "gui_changed", (gpointer) & (module->gui_changed))) 
+  if(!g_module_symbol(module->module, "gui_changed", (gpointer) & (module->gui_changed)))
     module->gui_changed = NULL;
   if(!g_module_symbol(module->module, "gui_cleanup", (gpointer) & (module->gui_cleanup)))
     module->gui_cleanup = default_gui_cleanup;
@@ -354,8 +353,7 @@ int dt_iop_load_module_so(void *m, const char *libname, const char *op)
     module->configure = NULL;
   if(!g_module_symbol(module->module, "scrolled", (gpointer) & (module->scrolled))) module->scrolled = NULL;
 
-  if(!g_module_symbol(module->module, "init", (gpointer) & (module->init))) 
-    module->init = dt_iop_default_init;
+  if(!g_module_symbol(module->module, "init", (gpointer) & (module->init))) module->init = dt_iop_default_init;
   if(!g_module_symbol(module->module, "cleanup", (gpointer) & (module->cleanup)))
     module->cleanup = default_cleanup;
   if(!g_module_symbol(module->module, "init_global", (gpointer) & (module->init_global)))
@@ -853,7 +851,7 @@ static void dt_iop_gui_moveup_callback(GtkButton *button, dt_iop_module_t *modul
   next->dev->pipe->cache_obsolete = 1;
   next->dev->preview_pipe->cache_obsolete = 1;
   next->dev->preview2_pipe->cache_obsolete = 1;
-  
+
   // rebuild the accelerators
   dt_iop_connect_accels_multi(module->so);
   dt_control_signal_raise(darktable.signals, DT_SIGNAL_DEVELOP_MODULE_MOVED);
@@ -1214,17 +1212,9 @@ gboolean dt_iop_is_hidden(dt_iop_module_t *module)
 
 gboolean dt_iop_shown_in_group(dt_iop_module_t *module, uint32_t group)
 {
-  uint32_t additional_flags = 0;
-
   if(group == DT_MODULEGROUP_NONE) return TRUE;
 
-  /* add special group flag for module in active pipe */
-  if(module->enabled) additional_flags |= IOP_SPECIAL_GROUP_ACTIVE_PIPE;
-
-  /* add special group flag for favorite */
-  if(module->so->state == dt_iop_state_FAVORITE) additional_flags |= IOP_SPECIAL_GROUP_USER_DEFINED;
-
-  return dt_dev_modulegroups_test(module->dev, group, dt_iop_get_group(module) | additional_flags);
+  return dt_dev_modulegroups_test(module->dev, group, module);
 }
 
 static void _iop_panel_label(GtkWidget *lab, dt_iop_module_t *module)
@@ -1769,7 +1759,7 @@ static void dt_iop_gui_reset_callback(GtkButton *button, dt_iop_module_t *module
   dt_iop_gui_update(module);
 
   dt_dev_add_history_item(module->dev, module, TRUE);
-  
+
   if(dt_conf_get_bool("accel/prefer_expanded") || dt_conf_get_bool("accel/prefer_enabled") || dt_conf_get_bool("accel/prefer_unmasked"))
   {
     // rebuild the accelerators

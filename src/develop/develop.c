@@ -1420,7 +1420,7 @@ static gboolean _dev_auto_apply_presets(dt_develop_t *dev)
     return FALSE;
   }
 
-  //add scene-referred workflow 
+  // add scene-referred workflow
   if(dt_image_is_matrix_correction_supported(image)
      && strcmp(dt_conf_get_string("plugins/darkroom/workflow"), "scene-referred") == 0)
   {
@@ -2184,10 +2184,10 @@ uint32_t dt_dev_modulegroups_get(dt_develop_t *dev)
   return 0;
 }
 
-gboolean dt_dev_modulegroups_test(dt_develop_t *dev, uint32_t group, uint32_t iop_group)
+gboolean dt_dev_modulegroups_test(dt_develop_t *dev, uint32_t group, dt_iop_module_t *module)
 {
   if(dev->proxy.modulegroups.module && dev->proxy.modulegroups.test)
-    return dev->proxy.modulegroups.test(dev->proxy.modulegroups.module, group, iop_group);
+    return dev->proxy.modulegroups.test(dev->proxy.modulegroups.module, group, module);
   return FALSE;
 }
 
