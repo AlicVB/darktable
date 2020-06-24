@@ -171,7 +171,8 @@ gchar *dt_lib_get_localized_name(const gchar *plugin_name);
 /** add or replace a preset for this operation. */
 void dt_lib_presets_add(const char *name, const char *plugin_name, const int32_t version, const void *params,
                         const int32_t params_size);
-
+// apply a preset to the given module
+gboolean dt_lib_presets_apply(gchar *preset, gchar *module_name, int module_version);
 /*
  * Proxy functions
  */
