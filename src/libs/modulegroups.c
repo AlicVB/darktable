@@ -25,6 +25,7 @@
 #include "develop/develop.h"
 #include "dtgtk/button.h"
 #include "dtgtk/icon.h"
+#include "gui/accelerators.h"
 #include "gui/gtk.h"
 #include "libs/lib.h"
 #include "libs/lib_api.h"
@@ -42,6 +43,21 @@ DT_MODULE(1)
 
 #include "modulegroups.h"
 
+typedef struct dt_lib_modulegroups_basic_item_t
+{
+  gchar *id;
+  GtkWidget *widget;
+  GtkWidget *old_parent;
+
+  int old_pos;
+  gboolean expand;
+  gboolean fill;
+  guint padding;
+  GtkPackType packtype;
+
+  dt_iop_module_t *module;
+} dt_lib_modulegroups_basic_item_t;
+
 typedef struct dt_lib_modulegroups_group_t
 {
   gchar *name;
@@ -58,6 +74,7 @@ typedef struct dt_lib_modulegroups_t
   GtkWidget *text_entry;
   GtkWidget *hbox_buttons;
   GtkWidget *active_btn;
+  GtkWidget *basic_btn;
   GtkWidget *hbox_groups;
   GtkWidget *hbox_search_box;
 
@@ -70,6 +87,9 @@ typedef struct dt_lib_modulegroups_t
   GtkWidget *dialog;
   GtkWidget *presets_list, *preset_box;
   GtkWidget *preset_name, *preset_groups_box;
+
+  GList *basics;
+  GtkWidget *vbox_basic;
 } dt_lib_modulegroups_t;
 
 typedef enum dt_lib_modulegroup_iop_visibility_type_t
@@ -150,7 +170,8 @@ int position()
 static GtkWidget *_buttons_get_from_pos(dt_lib_module_t *self, const int pos)
 {
   dt_lib_modulegroups_t *d = (dt_lib_modulegroups_t *)self->data;
-  if(pos == 0) return d->active_btn;
+  if(pos == DT_MODULEGROUP_ACTIVE_PIPE) return d->active_btn;
+  if(pos == DT_MODULEGROUP_BASICS) return d->basic_btn;
   dt_lib_modulegroups_group_t *gr = (dt_lib_modulegroups_group_t *)g_list_nth_data(d->groups, pos - 1);
   if(gr) return gr->button;
   return NULL;
@@ -252,6 +273,7 @@ static void _buttons_update(dt_lib_module_t *self)
   // first, we destroy all existing buttons except active one an preset one
   GList *l = gtk_container_get_children(GTK_CONTAINER(d->hbox_groups));
   if(l) l = g_list_next(l);
+  if(l) l = g_list_next(l);
   while(l)
   {
     GtkWidget *bt = (GtkWidget *)l->data;
@@ -275,10 +297,12 @@ static void _buttons_update(dt_lib_module_t *self)
 
   // last, if d->current still valid, we select it otherwise the first one
   int cur = d->current;
-  d->current = -1;
-  if(cur > g_list_length(d->groups)) cur = 0;
-  if(cur == 0)
+  d->current = DT_MODULEGROUP_NONE;
+  if(cur > g_list_length(d->groups) && cur != DT_MODULEGROUP_BASICS) cur = DT_MODULEGROUP_ACTIVE_PIPE;
+  if(cur == DT_MODULEGROUP_ACTIVE_PIPE)
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(d->active_btn), TRUE);
+  else if(cur == DT_MODULEGROUP_BASICS)
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(d->basic_btn), TRUE);
   else
   {
     dt_lib_modulegroups_group_t *gr = (dt_lib_modulegroups_group_t *)g_list_nth_data(d->groups, cur - 1);
@@ -304,6 +328,15 @@ void gui_init(dt_lib_module_t *self)
   // groups
   d->hbox_groups = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   gtk_box_pack_start(GTK_BOX(d->hbox_buttons), d->hbox_groups, TRUE, TRUE, 0);
+
+  // basic group button
+  d->basic_btn = dtgtk_togglebutton_new(dtgtk_cairo_paint_modulegroup_basic, pf, NULL);
+  g_signal_connect(d->basic_btn, "toggled", G_CALLBACK(_lib_modulegroups_toggle), self);
+  gtk_widget_set_tooltip_text(d->basic_btn, _("show basic adjustement list"));
+  gtk_box_pack_start(GTK_BOX(d->hbox_groups), d->basic_btn, TRUE, TRUE, 0);
+
+  d->vbox_basic = NULL;
+  d->basics = NULL;
 
   // active group button
   d->active_btn = dtgtk_togglebutton_new(dtgtk_cairo_paint_modulegroup_active, pf, NULL);
@@ -434,9 +467,117 @@ static gboolean _lib_modulegroups_test_visible(dt_lib_module_t *self, gchar *mod
   return FALSE;
 }
 
+static void _lib_modulegroups_hide_basics(dt_lib_module_t *self)
+{
+  dt_lib_modulegroups_t *d = (dt_lib_modulegroups_t *)self->data;
+
+  if(!d->vbox_basic || !gtk_widget_get_visible(d->vbox_basic)) return;
+  gtk_widget_hide(d->vbox_basic);
+
+  GList *l = d->basics;
+  while(l)
+  {
+    dt_lib_modulegroups_basic_item_t *item = (dt_lib_modulegroups_basic_item_t *)l->data;
+
+    // change the parent to the central container
+    g_object_ref(item->widget);
+    gtk_container_remove(GTK_CONTAINER(d->vbox_basic), item->widget);
+    if(item->packtype == GTK_PACK_START)
+      gtk_box_pack_start(GTK_BOX(item->old_parent), item->widget, item->expand, item->fill, item->padding);
+    else
+      gtk_box_pack_end(GTK_BOX(item->old_parent), item->widget, item->expand, item->fill, item->padding);
+
+    gtk_box_reorder_child(GTK_BOX(item->old_parent), item->widget, item->old_pos);
+
+    g_object_unref(item->widget);
+
+    l = g_list_next(l);
+  }
+}
+
+static void _lib_modulegroups_show_basics(dt_lib_module_t *self)
+{
+  dt_lib_modulegroups_t *d = (dt_lib_modulegroups_t *)self->data;
+
+  if(d->vbox_basic && gtk_widget_get_visible(d->vbox_basic)) return;
+
+  // let's do basic here for instance
+  GList *ll = d->basics;
+  while(ll)
+  {
+    dt_lib_modulegroups_basic_item_t *item = (dt_lib_modulegroups_basic_item_t *)ll->data;
+    g_free(item->id);
+    ll = g_list_next(ll);
+  }
+  g_list_free_full(d->basics, g_free);
+  d->basics = NULL;
+
+  char *widgets[] = { "<Darktable>/image operations/exposure/exposure/dynamic",
+                      "<Darktable>/image operations/temperature/temperature/dynamic",
+                      "<Darktable>/image operations/colorbalance/output saturation/dynamic",
+                      "<Darktable>/image operations/colorbalance/contrast/dynamic", NULL };
+  char **cur_name = widgets;
+  while(*cur_name)
+  {
+    dt_accel_t *accel = NULL;
+    GSList *l = darktable.control->accelerator_list;
+    while(l)
+    {
+      accel = (dt_accel_t *)l->data;
+      if(accel && !strcmp(accel->path, *cur_name)) break;
+      l = g_slist_next(l);
+    }
+    if(l && accel->closure && GTK_IS_WIDGET(accel->closure->data)
+       && GTK_IS_BOX(gtk_widget_get_parent(GTK_WIDGET(accel->closure->data))))
+    {
+      dt_lib_modulegroups_basic_item_t *item
+          = (dt_lib_modulegroups_basic_item_t *)g_malloc0(sizeof(dt_lib_modulegroups_basic_item_t));
+      item->widget = GTK_WIDGET(accel->closure->data);
+      item->old_parent = gtk_widget_get_parent(item->widget);
+      // we retrieve current positions, etc...
+      gtk_box_query_child_packing(GTK_BOX(item->old_parent), item->widget, &item->expand, &item->fill,
+                                  &item->padding, &item->packtype);
+      GValue v = G_VALUE_INIT;
+      g_value_init(&v, G_TYPE_INT);
+      gtk_container_child_get_property(GTK_CONTAINER(item->old_parent), item->widget, "position", &v);
+      item->old_pos = g_value_get_int(&v);
+      d->basics = g_list_append(d->basics, item);
+    }
+
+    cur_name++;
+  }
+
+
+  if(!d->vbox_basic)
+  {
+    d->vbox_basic = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    gtk_widget_set_name(d->vbox_basic, "iop-plugin-ui");
+    dt_ui_container_add_widget(darktable.gui->ui, DT_UI_CONTAINER_PANEL_RIGHT_CENTER, d->vbox_basic);
+  }
+
+  GList *l = d->basics;
+  while(l)
+  {
+    dt_lib_modulegroups_basic_item_t *item = (dt_lib_modulegroups_basic_item_t *)l->data;
+
+    // change the parent to the central container
+    g_object_ref(item->widget);
+    gtk_container_remove(GTK_CONTAINER(item->old_parent), item->widget);
+    gtk_box_pack_start(GTK_BOX(d->vbox_basic), item->widget, FALSE, FALSE, 0);
+    g_object_unref(item->widget);
+
+    l = g_list_next(l);
+  }
+
+  gtk_widget_show(d->vbox_basic);
+}
+
 static void _lib_modulegroups_update_iop_visibility(dt_lib_module_t *self)
 {
   dt_lib_modulegroups_t *d = (dt_lib_modulegroups_t *)self->data;
+
+  // we hide eventual basic panel
+  if(d->current != DT_MODULEGROUP_BASICS) _lib_modulegroups_hide_basics(self);
 
   const dt_lib_modulegroup_iop_visibility_type_t visibility = _get_search_iop_visibility();
   const gchar *text_entered = (gtk_widget_is_visible(GTK_WIDGET(d->hbox_search_box)))
@@ -534,6 +675,13 @@ static void _lib_modulegroups_update_iop_visibility(dt_lib_module_t *self)
       /* lets show/hide modules dependent on current group*/
       switch(d->current)
       {
+        case DT_MODULEGROUP_BASICS:
+        {
+          if(darktable.develop->gui_module == module) dt_iop_request_focus(NULL);
+          if(w) gtk_widget_hide(w);
+        }
+        break;
+
         case DT_MODULEGROUP_ACTIVE_PIPE:
         {
           if(module->enabled)
@@ -582,6 +730,9 @@ static void _lib_modulegroups_update_iop_visibility(dt_lib_module_t *self)
   if (DT_IOP_ORDER_INFO) fprintf(stderr,"\nvvvvv\n");
   // now that visibility has been updated set multi-show
   dt_dev_modules_update_multishow(darktable.develop);
+
+  // we show eventual basic panel
+  if(d->current == DT_MODULEGROUP_BASICS) _lib_modulegroups_show_basics(self);
 }
 
 static void _lib_modulegroups_toggle(GtkWidget *button, gpointer user_data)
@@ -597,6 +748,7 @@ static void _lib_modulegroups_toggle(GtkWidget *button, gpointer user_data)
     g_signal_handlers_block_matched(_buttons_get_from_pos(self, k), G_SIGNAL_MATCH_FUNC, 0, 0, NULL,
                                     _lib_modulegroups_toggle, NULL);
 
+  g_signal_handlers_block_matched(d->basic_btn, G_SIGNAL_MATCH_FUNC, 0, 0, NULL, _lib_modulegroups_toggle, NULL);
   /* deactivate all buttons */
   int gid = 0;
   for(int k = 0; k <= g_list_length(d->groups); k++)
@@ -606,6 +758,8 @@ static void _lib_modulegroups_toggle(GtkWidget *button, gpointer user_data)
     if(bt == button) gid = k;
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(bt), FALSE);
   }
+  if(button == d->basic_btn) gid = DT_MODULEGROUP_BASICS;
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(d->basic_btn), FALSE);
 
   /* only deselect button if not currently searching else re-enable module */
   if(d->current == gid && !(text_entered && text_entered[0] != '\0'))
@@ -621,6 +775,7 @@ static void _lib_modulegroups_toggle(GtkWidget *button, gpointer user_data)
     g_signal_handlers_unblock_matched(_buttons_get_from_pos(self, k), G_SIGNAL_MATCH_FUNC, 0, 0, NULL,
                                       _lib_modulegroups_toggle, NULL);
 
+  g_signal_handlers_unblock_matched(d->basic_btn, G_SIGNAL_MATCH_FUNC, 0, 0, NULL, _lib_modulegroups_toggle, NULL);
   /* clear search text */
   if(gtk_widget_is_visible(GTK_WIDGET(d->hbox_search_box)))
   {
