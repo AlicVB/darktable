@@ -823,13 +823,13 @@ static void _circle_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_f
                     arrowy + arrow_scale * sinf(cangle - (0.4f)));
 
       cairo_set_dash(cr, dashed, 0, 0);
-      if((gui->group_selected == index) && (gui->form_selected || gui->form_dragging))
+      if(gui->group_selected == index && gui->group_edited != index)
         cairo_set_line_width(cr, 2.5 / zoom_scale);
       else
         cairo_set_line_width(cr, 1.5 / zoom_scale);
       dt_draw_set_color_overlay(cr, 0.3, 0.8);
       cairo_stroke_preserve(cr);
-      if((gui->group_selected == index) && (gui->form_selected || gui->form_dragging))
+      if(gui->group_selected == index && gui->group_edited != index)
         cairo_set_line_width(cr, 1.0 / zoom_scale);
       else
         cairo_set_line_width(cr, 0.5 / zoom_scale);
