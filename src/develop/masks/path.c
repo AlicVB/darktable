@@ -2170,13 +2170,13 @@ static void _path_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_for
     cairo_move_to(cr, gpt->source[2], gpt->source[3]);
     cairo_line_to(cr, gpt->points[2], gpt->points[3]);
     cairo_set_dash(cr, dashed, 0, 0);
-    if((gui->group_selected == index) && (gui->form_selected || gui->form_dragging))
+    if(gui->group_selected == index && gui->group_edited != index)
       cairo_set_line_width(cr, 2.5 / zoom_scale);
     else
       cairo_set_line_width(cr, 1.5 / zoom_scale);
     dt_draw_set_color_overlay(cr, 0.3, 0.8);
     cairo_stroke_preserve(cr);
-    if((gui->group_selected == index) && (gui->form_selected || gui->form_dragging))
+    if(gui->group_selected == index && gui->group_edited != index)
       cairo_set_line_width(cr, 1.0 / zoom_scale);
     else
       cairo_set_line_width(cr, 0.5 / zoom_scale);
@@ -2185,7 +2185,7 @@ static void _path_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_for
 
     // we draw the source
     cairo_set_dash(cr, dashed, 0, 0);
-    if((gui->group_selected == index) && (gui->form_selected || gui->form_dragging))
+    if(gui->group_selected == index && gui->group_edited != index)
       cairo_set_line_width(cr, 2.5 / zoom_scale);
     else
       cairo_set_line_width(cr, 1.5 / zoom_scale);
@@ -2194,7 +2194,7 @@ static void _path_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_for
     for(int i = nb * 3; i < gpt->source_count; i++) cairo_line_to(cr, gpt->source[i * 2], gpt->source[i * 2 + 1]);
     cairo_line_to(cr, gpt->source[nb * 6], gpt->source[nb * 6 + 1]);
     cairo_stroke_preserve(cr);
-    if((gui->group_selected == index) && (gui->form_selected || gui->form_dragging))
+    if(gui->group_selected == index && gui->group_edited != index)
       cairo_set_line_width(cr, 1.0 / zoom_scale);
     else
       cairo_set_line_width(cr, 0.5 / zoom_scale);
