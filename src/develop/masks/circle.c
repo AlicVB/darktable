@@ -282,6 +282,7 @@ static int _circle_events_button_pressed(struct dt_iop_module_t *module, float p
         dt_masks_set_edit_mode(crea_module, DT_MASKS_EDIT_FULL);
       dt_masks_iop_update(crea_module);
       gui->creation_module = NULL;
+      dt_masks_gui_form_select_in_group(form, gui);
     }
     else
     {
