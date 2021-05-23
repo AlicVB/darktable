@@ -262,6 +262,26 @@ void dt_masks_gui_form_test_create(dt_masks_form_t *form, dt_masks_form_gui_t *g
   }
 }
 
+void dt_masks_gui_form_select_in_group(dt_masks_form_t *form, dt_masks_form_gui_t *gui)
+{
+  if(darktable.develop->form_visible && (darktable.develop->form_visible->type & DT_MASKS_GROUP))
+  {
+    const dt_masks_form_t *grp = darktable.develop->form_visible;
+    int pos = 0;
+    for(GList *fpts = grp->points; fpts; fpts = g_list_next(fpts))
+    {
+      dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)fpts->data;
+      if(fpt->formid == form->formid)
+      {
+        gui->group_edited = gui->group_selected = pos;
+        return;
+      }
+      pos++;
+    }
+  }
+  gui->group_edited = gui->group_selected = -1;
+}
+
 static void _check_id(dt_masks_form_t *form)
 {
   int nid = 100;
