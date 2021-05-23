@@ -124,7 +124,7 @@ static int _circle_events_mouse_scrolled(struct dt_iop_module_t *module, float p
     return 1;
   }
 
-  if(gui->form_selected)
+  if(gui->group_edited == index)
   {
     // we register the current position
     if(gui->scrollx == 0.0f && gui->scrolly == 0.0f)
@@ -780,12 +780,11 @@ static void _circle_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_f
 
   if(!gpt) return;
   // we draw the main shape
-  const gboolean selected = (gui->group_selected == index) && (gui->form_selected || gui->form_dragging);
+  const gboolean selected = (gui->group_selected == index && gui->group_edited != index);
   _circle_draw_lines(FALSE, FALSE, cr, dashed, len, selected, zoom_scale, gpt->points, gpt->points_count);
   // we draw the borders
-  if(gui->group_selected == index)
-    _circle_draw_lines(TRUE, FALSE, cr, dashed, len, (gui->border_selected), zoom_scale, gpt->border,
-                       gpt->border_count);
+  if(gui->group_edited == index)
+    _circle_draw_lines(TRUE, FALSE, cr, dashed, len, FALSE, zoom_scale, gpt->border, gpt->border_count);
 
   // draw the source if any
   if(gpt->source_count > 6)

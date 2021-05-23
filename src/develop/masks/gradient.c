@@ -113,7 +113,7 @@ static int _gradient_events_mouse_scrolled(struct dt_iop_module_t *module, float
     return 1;
   }
 
-  if(gui->form_selected)
+  if(gui->group_edited == index)
   {
     // we register the current position
     if(gui->scrollx == 0.0f && gui->scrolly == 0.0f)
@@ -550,16 +550,15 @@ static int _gradient_events_mouse_moved(struct dt_iop_module_t *module, float pz
 
     const dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *)g_list_nth_data(gui->points, index);
 
-    if(gpt
+    if(gui->group_edited == index && gpt
        && (x - gpt->points[2]) * (x - gpt->points[2]) + (y - gpt->points[3]) * (y - gpt->points[3]) < as)
     {
       gui->pivot_selected = TRUE;
       gui->form_selected = TRUE;
       gui->border_selected = FALSE;
     }
-    else if(gpt
-            && (x - gpt->points[4]) * (x - gpt->points[4]) + (y - gpt->points[5]) * (y - gpt->points[5])
-               < as)
+    else if(gui->group_edited == index && gpt
+            && (x - gpt->points[4]) * (x - gpt->points[4]) + (y - gpt->points[5]) * (y - gpt->points[5]) < as)
     {
       gui->pivot_selected = TRUE;
       gui->form_selected = TRUE;
@@ -1006,11 +1005,11 @@ static void _gradient_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks
   const float xref = gpt->points[0];
   const float yref = gpt->points[1];
 
-  const gboolean selected = (gui->group_selected == index) && (gui->form_selected || gui->form_dragging);
+  const gboolean selected = (gui->group_selected == index && gui->group_edited != index);
   // draw main line
   _gradient_draw_lines(FALSE, cr, dashed, len, selected, zoom_scale, gpt->points, gpt->points_count, xref, yref);
   // draw borders
-  if(gui->group_selected == index)
+  if(gui->group_edited == index)
     _gradient_draw_lines(TRUE, cr, dashed, len, gui->border_selected, zoom_scale, gpt->border, gpt->border_count,
                          xref, yref);
 
@@ -1458,11 +1457,13 @@ static void _gradient_set_hint_message(const dt_masks_form_gui_t *const gui, con
                _("<b>curvature</b>: scroll, <b>compression</b>: shift+scroll\n"
                  "<b>rotation</b>: click+drag, <b>opacity</b>: ctrl+scroll (%d%%)"),
                opacity);
-  else if(gui->form_selected)
-    g_snprintf(msgbuf, msgbuf_len, _("<b>curvature</b>: scroll, <b>compression</b>: shift+scroll\n"
-                                     "<b>opacity</b>: ctrl+scroll (%d%%)"), opacity);
   else if(gui->pivot_selected)
     g_strlcat(msgbuf, _("<b>rotate</b>: drag"), msgbuf_len);
+  else
+    g_snprintf(msgbuf, msgbuf_len,
+               _("<b>curvature</b>: scroll, <b>compression</b>: shift+scroll\n"
+                 "<b>opacity</b>: ctrl+scroll (%d%%)"),
+               opacity);
 }
 
 static void _gradient_duplicate_points(dt_develop_t *dev, dt_masks_form_t *const base, dt_masks_form_t *const dest)

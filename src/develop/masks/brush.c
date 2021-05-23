@@ -1004,7 +1004,7 @@ static void _brush_get_distance(float x, float y, float as, dt_masks_form_gui_t 
       if (((y<=yy && y>last) || (y>=yy && y<last)) && (gpt->border[i * 2] > x)) nb++;
       last = yy;
     }
-    *inside = *inside_border = (nb & 1);
+    *inside = (nb & 1);
   }
 
   // and we check if we are near a segment
@@ -1140,7 +1140,7 @@ static int _brush_events_mouse_scrolled(struct dt_iop_module_t *module, float pz
     dt_control_queue_redraw_center();
     return 1;
   }
-  else if(gui->form_selected || gui->point_selected >= 0 || gui->feather_selected >= 0
+  else if(gui->group_edited == index || gui->point_selected >= 0 || gui->feather_selected >= 0
           || gui->seg_selected >= 0)
   {
     // we register the current position
@@ -2099,50 +2099,53 @@ static int _brush_events_mouse_moved(struct dt_iop_module_t *module, float pzx, 
   pzx *= darktable.develop->preview_pipe->backbuf_width;
   pzy *= darktable.develop->preview_pipe->backbuf_height;
 
-  if((gui->group_selected == index) && gui->point_edited >= 0)
+  if(gui->group_edited == index)
   {
-    const int k = gui->point_edited;
-    // we only select feather if the point is not "sharp"
-    if(gpt->points[k * 6 + 2] != gpt->points[k * 6 + 4] && gpt->points[k * 6 + 3] != gpt->points[k * 6 + 5])
+    if(gui->point_edited >= 0)
     {
-      int ffx, ffy;
-      _brush_ctrl2_to_feather(gpt->points[k * 6 + 2], gpt->points[k * 6 + 3], gpt->points[k * 6 + 4],
-                              gpt->points[k * 6 + 5], &ffx, &ffy, TRUE);
-      if(pzx - ffx > -as && pzx - ffx < as && pzy - ffy > -as && pzy - ffy < as)
+      const int k = gui->point_edited;
+      // we only select feather if the point is not "sharp"
+      if(gpt->points[k * 6 + 2] != gpt->points[k * 6 + 4] && gpt->points[k * 6 + 3] != gpt->points[k * 6 + 5])
       {
-        gui->feather_selected = k;
+        int ffx, ffy;
+        _brush_ctrl2_to_feather(gpt->points[k * 6 + 2], gpt->points[k * 6 + 3], gpt->points[k * 6 + 4],
+                                gpt->points[k * 6 + 5], &ffx, &ffy, TRUE);
+        if(pzx - ffx > -as && pzx - ffx < as && pzy - ffy > -as && pzy - ffy < as)
+        {
+          gui->feather_selected = k;
+          dt_control_queue_redraw_center();
+          return 1;
+        }
+      }
+      // corner ??
+      if(pzx - gpt->points[k * 6 + 2] > -as && pzx - gpt->points[k * 6 + 2] < as
+         && pzy - gpt->points[k * 6 + 3] > -as && pzy - gpt->points[k * 6 + 3] < as)
+      {
+        gui->point_selected = k;
         dt_control_queue_redraw_center();
         return 1;
       }
     }
-    // corner ??
-    if(pzx - gpt->points[k * 6 + 2] > -as && pzx - gpt->points[k * 6 + 2] < as
-       && pzy - gpt->points[k * 6 + 3] > -as && pzy - gpt->points[k * 6 + 3] < as)
-    {
-      gui->point_selected = k;
-      dt_control_queue_redraw_center();
-      return 1;
-    }
-  }
 
-  for(int k = 0; k < nb; k++)
-  {
-    // corner ??
-    if(pzx - gpt->points[k * 6 + 2] > -as && pzx - gpt->points[k * 6 + 2] < as
-       && pzy - gpt->points[k * 6 + 3] > -as && pzy - gpt->points[k * 6 + 3] < as)
+    for(int k = 0; k < nb; k++)
     {
-      gui->point_selected = k;
-      dt_control_queue_redraw_center();
-      return 1;
-    }
+      // corner ??
+      if(pzx - gpt->points[k * 6 + 2] > -as && pzx - gpt->points[k * 6 + 2] < as
+         && pzy - gpt->points[k * 6 + 3] > -as && pzy - gpt->points[k * 6 + 3] < as)
+      {
+        gui->point_selected = k;
+        dt_control_queue_redraw_center();
+        return 1;
+      }
 
-    // border corner ??
-    if(pzx - gpt->border[k * 6] > -as && pzx - gpt->border[k * 6] < as && pzy - gpt->border[k * 6 + 1] > -as
-       && pzy - gpt->border[k * 6 + 1] < as)
-    {
-      gui->point_border_selected = k;
-      dt_control_queue_redraw_center();
-      return 1;
+      // border corner ??
+      if(pzx - gpt->border[k * 6] > -as && pzx - gpt->border[k * 6] < as && pzy - gpt->border[k * 6 + 1] > -as
+         && pzy - gpt->border[k * 6 + 1] < as)
+      {
+        gui->point_border_selected = k;
+        dt_control_queue_redraw_center();
+        return 1;
+      }
     }
   }
 
@@ -2150,7 +2153,7 @@ static int _brush_events_mouse_moved(struct dt_iop_module_t *module, float pzx, 
   int in, inb, near, ins;
   float dist;
   _brush_get_distance(pzx, (int)pzy, as, gui, index, nb, &in, &inb, &near, &ins, &dist);
-  gui->seg_selected = near;
+  if(gui->group_edited == index) gui->seg_selected = near;
   if(near < 0)
   {
     if(ins)
@@ -2387,15 +2390,13 @@ static void _brush_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_fo
       if(gpt->points[i * 2 + 1] == gpt->points[seg * 6 + 3] && gpt->points[i * 2] == gpt->points[seg * 6 + 2])
       {
         // this is the end of the last segment, so we have to draw it
-        if((gui->group_selected == index)
-           && (gui->form_selected || gui->form_dragging || gui->seg_selected == seg2))
+        if(gui->group_selected == index && gui->group_edited != index)
           cairo_set_line_width(cr, 5.0 / zoom_scale);
         else
           cairo_set_line_width(cr, 3.0 / zoom_scale);
         dt_draw_set_color_overlay(cr, 0.3, 0.8);
         cairo_stroke_preserve(cr);
-        if((gui->group_selected == index)
-           && (gui->form_selected || gui->form_dragging || gui->seg_selected == seg2))
+        if(gui->group_selected == index && gui->group_edited != index)
           cairo_set_line_width(cr, 2.0 / zoom_scale);
         else
           cairo_set_line_width(cr, 1.0 / zoom_scale);
@@ -2410,7 +2411,7 @@ static void _brush_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_fo
   }
 
   // draw corners
-  if(gui->group_selected == index && gpt->points_count > nb * 3 + 2)
+  if(gui->group_edited == index && gpt->points_count > nb * 3 + 2)
   {
     for(int k = 0; k < nb; k++)
     {
@@ -2428,10 +2429,9 @@ static void _brush_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_fo
                       gpt->points[k * 6 + 3] - (anchor_size * 0.5), anchor_size, anchor_size);
       cairo_fill_preserve(cr);
 
-      if((gui->group_selected == index) && (k == gui->point_dragging || k == gui->point_selected))
+      if(k == gui->point_dragging || k == gui->point_selected)
         cairo_set_line_width(cr, 2.0 / zoom_scale);
-      else if((gui->group_selected == index)
-              && ((k == 0 || k == nb) && gui->creation && gui->creation_closing_form))
+      else if((k == 0 || k == nb) && gui->creation && gui->creation_closing_form)
         cairo_set_line_width(cr, 2.0 / zoom_scale);
       else
         cairo_set_line_width(cr, 1.0 / zoom_scale);
@@ -2441,7 +2441,7 @@ static void _brush_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_fo
   }
 
   // draw feathers
-  if((gui->group_selected == index) && gui->point_edited >= 0)
+  if((gui->group_edited == index) && gui->point_edited >= 0)
   {
     const int k = gui->point_edited;
     // uncomment this part if you want to see "real" control points
@@ -2463,7 +2463,7 @@ static void _brush_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_fo
     dt_draw_set_color_overlay(cr, 0.8, 0.8);
     cairo_stroke(cr);
 
-    if((gui->group_selected == index) && (k == gui->feather_dragging || k == gui->feather_selected))
+    if(k == gui->feather_dragging || k == gui->feather_selected)
       cairo_arc(cr, ffx, ffy, 3.0f / zoom_scale, 0, 2.0 * M_PI);
     else
       cairo_arc(cr, ffx, ffy, 1.5f / zoom_scale, 0, 2.0 * M_PI);
@@ -2476,7 +2476,7 @@ static void _brush_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_fo
   }
 
   // draw border and corners
-  if((gui->group_selected == index) && gpt->border_count > nb * 3 + 2)
+  if((gui->group_edited == index) && gpt->border_count > nb * 3 + 2)
   {
     cairo_move_to(cr, gpt->border[nb * 6], gpt->border[nb * 6 + 1]);
 
@@ -2485,17 +2485,11 @@ static void _brush_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_fo
       cairo_line_to(cr, gpt->border[i * 2], gpt->border[i * 2 + 1]);
     }
     // we execute the drawing
-    if(gui->border_selected)
-      cairo_set_line_width(cr, 2.0 / zoom_scale);
-    else
-      cairo_set_line_width(cr, 1.0 / zoom_scale);
+    cairo_set_line_width(cr, 1.0 / zoom_scale);
     dt_draw_set_color_overlay(cr, 0.3, 0.8);
     cairo_set_dash(cr, dashed, len, 0);
     cairo_stroke_preserve(cr);
-    if(gui->border_selected)
-      cairo_set_line_width(cr, 2.0 / zoom_scale);
-    else
-      cairo_set_line_width(cr, 1.0 / zoom_scale);
+    cairo_set_line_width(cr, 1.0 / zoom_scale);
     dt_draw_set_color_overlay(cr, 0.8, 0.8);
     cairo_set_dash(cr, dashed, len, 4);
     cairo_stroke(cr);
@@ -2922,12 +2916,12 @@ static void _brush_set_hint_message(const dt_masks_form_gui_t *const gui, const 
     g_snprintf(msgbuf, msgbuf_len,
                _("<b>size</b>: scroll, <b>hardness</b>: shift+scroll\n"
                  "<b>opacity</b>: ctrl+scroll (%d%%)"), opacity);
-  else if(gui->form_selected)
+  else if(gui->border_selected)
+    g_strlcat(msgbuf, _("<b>size</b>: scroll"), msgbuf_len);
+  else
     g_snprintf(msgbuf, msgbuf_len,
                _("<b>hardness</b>: scroll, <b>size</b>: shift+scroll\n"
                  "<b>opacity</b>: ctrl+scroll (%d%%)"), opacity);
-  else if(gui->border_selected)
-    g_strlcat(msgbuf, _("<b>size</b>: scroll"), msgbuf_len);
 }
 
 static void _brush_duplicate_points(dt_develop_t *const dev, dt_masks_form_t *const base, dt_masks_form_t *const dest)

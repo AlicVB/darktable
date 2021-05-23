@@ -557,7 +557,7 @@ static int _ellipse_events_mouse_scrolled(struct dt_iop_module_t *module, float 
     return 1;
   }
 
-  if(gui->form_selected)
+  if(gui->group_edited == index)
   {
     // we register the current position
     if(gui->scrollx == 0.0f && gui->scrolly == 0.0f)
@@ -1456,10 +1456,11 @@ static void _ellipse_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_
   float x, y;
 
   // draw shape
-  _ellipse_draw_shape(cr, dashed, 0, zoom_scale, xref, yref, gpt->points, gpt->points_count);
+  const gboolean selected = (gui->group_selected == index && gui->group_edited != index);
+  _ellipse_draw_shape(cr, dashed, selected, zoom_scale, xref, yref, gpt->points, gpt->points_count);
 
   // draw anchor points
-  if(TRUE)
+  if(gui->group_edited == index)
   {
     cairo_set_dash(cr, dashed, 0, 0);
     float anchor_size;
@@ -1476,9 +1477,7 @@ static void _ellipse_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_
       _ellipse_point_transform(xref, yref, gpt->points[i * 2], gpt->points[i * 2 + 1], sinr, cosr, &x, &y);
       cairo_rectangle(cr, x - (anchor_size * 0.5), y - (anchor_size * 0.5), anchor_size, anchor_size);
       cairo_fill_preserve(cr);
-      if((gui->group_selected == index) && (i == gui->point_dragging || i == gui->point_selected))
-        cairo_set_line_width(cr, 2.0 / zoom_scale);
-      if((gui->group_selected == index) && (gui->form_dragging || gui->form_selected))
+      if(i == gui->point_dragging || i == gui->point_selected)
         cairo_set_line_width(cr, 2.0 / zoom_scale);
       else
         cairo_set_line_width(cr, 1.0 / zoom_scale);
@@ -1488,7 +1487,7 @@ static void _ellipse_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_
   }
 
   // draw border
-  if(gui->group_selected == index)
+  if(gui->group_edited == index)
   {
     _ellipse_draw_border(cr, dashed, len, 0, zoom_scale, xref, yref, gpt->border, gpt->border_count);
   }
@@ -2208,7 +2207,7 @@ static void _ellipse_set_hint_message(const dt_masks_form_gui_t *const gui, cons
                  "<b>rotation</b>: ctrl+shift+scroll, <b>opacity</b>: ctrl+scroll (%d%%)"), opacity);
   else if(gui->point_selected >= 0)
     g_strlcat(msgbuf, _("<b>rotate</b>: ctrl+drag"), msgbuf_len);
-  else if(gui->form_selected)
+  else
     g_snprintf(msgbuf, msgbuf_len,
                _("<b>feather mode</b>: shift+click, <b>rotate</b>: ctrl+drag\n"
                  "<b>size</b>: scroll, <b>feather size</b>: shift+scroll, <b>opacity</b>: ctrl+scroll (%d%%)"), opacity);
