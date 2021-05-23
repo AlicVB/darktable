@@ -1100,10 +1100,13 @@ int dt_masks_events_button_pressed(struct dt_iop_module_t *module, double x, dou
     dt_masks_select_form(module, sel);
   }
 
+  int rep = 0;
   if(form->functions)
-    return form->functions->button_pressed(module, pzx, pzy, pressure, which, type, state, form, 0, gui, 0);
+    rep = form->functions->button_pressed(module, pzx, pzy, pressure, which, type, state, form, 0, gui, 0);
 
-  return 0;
+  if(gui) _set_hinter_message(gui, form);
+
+  return rep;
 }
 
 int dt_masks_events_mouse_scrolled(struct dt_iop_module_t *module, double x, double y, int up, uint32_t state)

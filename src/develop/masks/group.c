@@ -47,13 +47,11 @@ static int _group_events_button_pressed(struct dt_iop_module_t *module, float pz
     gui->group_edited = gui->group_selected;
     // we initialise some variable
     gui->dx = gui->dy = 0.0f;
-    gui->form_selected = gui->border_selected = gui->form_dragging = gui->form_rotating = FALSE;
+    gui->border_selected = gui->form_dragging = gui->form_rotating = FALSE;
+    gui->form_selected = TRUE;
     gui->pivot_selected = FALSE;
     gui->point_border_selected = gui->seg_selected = gui->point_selected = gui->feather_selected = -1;
     gui->point_border_dragging = gui->seg_dragging = gui->feather_dragging = gui->point_dragging = -1;
-
-    dt_control_queue_redraw_center();
-    return 1;
   }
   if(gui->group_edited >= 0)
   {
@@ -143,7 +141,7 @@ static int _group_events_mouse_moved(struct dt_iop_module_t *module, float pzx, 
   gui->point_edited = gui->point_selected = -1;
   gui->seg_selected = -1;
   gui->point_border_selected = -1;
-  gui->group_edited = gui->group_selected = -1;
+  gui->group_selected = -1;
 
   dt_masks_form_t *sel = NULL;
   dt_masks_point_group_t *sel_fpt = NULL;
@@ -164,9 +162,8 @@ static int _group_events_mouse_moved(struct dt_iop_module_t *module, float pzx, 
       frm->functions->get_distance(xx, yy, as, gui, pos, g_list_length(frm->points),
                                    &inside, &inside_border, &near, &inside_source, &dist);
 
-    if(inside || inside_border || near >= 0 || inside_source)
+    if((inside && !inside_border) || near >= 0 || inside_source)
     {
-
       if(sel_dist > dist)
       {
         sel = frm;
@@ -180,8 +177,8 @@ static int _group_events_mouse_moved(struct dt_iop_module_t *module, float pzx, 
 
   if(sel && sel->functions)
   {
-    gui->group_edited = gui->group_selected = sel_pos;
-    return sel->functions->mouse_moved(module, pzx, pzy, pressure, which, sel, sel_fpt->parentid, gui, gui->group_edited);
+    gui->group_selected = sel_pos;
+    return sel->functions->mouse_moved(module, pzx, pzy, pressure, which, sel, sel_fpt->parentid, gui, sel_pos);
   }
 
   dt_control_queue_redraw_center();
