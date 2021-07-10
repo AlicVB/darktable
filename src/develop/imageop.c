@@ -1823,6 +1823,7 @@ void dt_iop_gui_update(dt_iop_module_t *module)
     }
     _iop_gui_update_label(module);
     dt_iop_gui_set_enable_button(module);
+    dt_guides_update_module_widget(module);
   }
   --darktable.gui->reset;
 }
@@ -2499,6 +2500,7 @@ void dt_iop_gui_set_expander(dt_iop_module_t *module)
 
   /* add the blending ui if supported */
   gtk_box_pack_start(GTK_BOX(iopw), module->widget, TRUE, TRUE, 0);
+  dt_guides_init_module_widget(iopw, module);
   dt_iop_gui_init_blending(iopw, module);
   gtk_widget_set_name(module->widget, "iop-plugin-ui-main");
   dt_gui_add_help_link(module->widget, dt_get_help_url(module->op));
