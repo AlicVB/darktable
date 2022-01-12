@@ -20,18 +20,19 @@
 #ifdef HAVE_GPHOTO2
 #include "common/camera_control.h"
 #endif
+#include "bauhaus/bauhaus.h"
 #include "common/collection.h"
 #include "common/colorspaces.h"
 #include "common/file_location.h"
 #include "common/image.h"
 #include "common/image_cache.h"
-#include "bauhaus/bauhaus.h"
 #include "develop/develop.h"
 #include "develop/imageop.h"
 #include "dtgtk/button.h"
 #include "dtgtk/sidepanel.h"
 #include "dtgtk/thumbtable.h"
 #include "gui/accelerators.h"
+#include "gui/drag_and_drop.h"
 #include "gui/gtk.h"
 
 #include "common/styles.h"
@@ -1546,6 +1547,27 @@ static void _init_widgets(dt_gui_gtk_t *gui)
 
 }
 
+
+void _ui_center_dnd_recieve(GtkWidget *widget, GdkDragContext *context, gint x, gint y,
+                            GtkSelectionData *selection_data, guint target_type, guint time, gpointer user_data)
+{
+  gboolean success = FALSE;
+
+  if(darktable.view_manager)
+  {
+    const dt_view_t *cv = dt_view_manager_get_current_view(darktable.view_manager);
+
+    if(g_strcmp0(cv->module_name, "lighttable") == 0)
+    {
+      // for lighttable, that means we want to import images into empty view
+      dt_thumbtable_event_dnd_received(widget, context, x, y, selection_data, target_type, time, user_data);
+      return;
+    }
+  }
+
+  gtk_drag_finish(context, success, FALSE, time);
+}
+
 static void _init_main_table(GtkWidget *container)
 {
   GtkWidget *widget;
@@ -1615,6 +1637,9 @@ static void _init_main_table(GtkWidget *container)
   gtk_widget_set_can_focus(cda, TRUE);
   gtk_widget_set_visible(cda, TRUE);
   gtk_overlay_add_overlay(GTK_OVERLAY(ocda), cda);
+  // enable drag & drop
+  gtk_drag_dest_set(ocda, GTK_DEST_DEFAULT_ALL, target_list_all, n_targets_all, GDK_ACTION_MOVE);
+  g_signal_connect(G_OBJECT(ocda), "drag-data-received", G_CALLBACK(_ui_center_dnd_recieve), NULL);
 
   gtk_grid_attach(GTK_GRID(centergrid), ocda, 0, 0, 1, 1);
   darktable.gui->ui->center = cda;
