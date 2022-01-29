@@ -1618,6 +1618,10 @@ filechooser row:hover,
 {
   margin-left: 0.6em;
 }
+#collect-header-box #dt-toggle-button
+{
+  background-color: transparent;
+}
 
 /*--------------------------------
   - Tree view (lists and tables) -

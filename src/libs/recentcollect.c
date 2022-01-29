@@ -89,7 +89,7 @@ static gboolean _goto_previous(GtkAccelGroup *accel_group, GObject *acceleratabl
   const char *line = dt_conf_get_string_const("plugins/lighttable/recentcollect/line1");
   if(line)
   {
-    dt_collection_deserialize(line);
+    dt_collection_deserialize(line, FALSE);
   }
   return TRUE;
 }
@@ -187,7 +187,7 @@ static void _button_pressed(GtkButton *button, gpointer user_data)
   const char *line = dt_conf_get_string_const(confname);
   if(line)
   {
-    dt_collection_deserialize(line);
+    dt_collection_deserialize(line, FALSE);
     // position will be updated when the list of recent collections is.
     // that way it'll also catch cases when this is triggered by a signal,
     // not only our button press here.
@@ -205,7 +205,7 @@ static void _lib_recentcollection_updated(gpointer instance, dt_collection_chang
   char confname[200] = { 0 };
 
   char buf[4096];
-  if(dt_collection_serialize(buf, sizeof(buf))) return;
+  if(dt_collection_serialize(buf, sizeof(buf), FALSE)) return;
 
   // is the current position, i.e. the one to be stored with the old collection (pos0, pos1-to-be)
   uint32_t curr_pos = table->offset;
