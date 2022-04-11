@@ -1404,8 +1404,14 @@ static void _dt_pref_changed(gpointer instance, gpointer user_data)
   GtkBorder margin, padding;
   gtk_style_context_get_margin(context, state, &margin);
   gtk_style_context_get_padding(context, state, &padding);
-  if(mw >= 0) mw += margin.left + margin.right + padding.right + padding.left;
-  if(mh >= 0) mh += margin.top + margin.bottom + padding.top + padding.bottom;
+  if(mw > 0)
+    mw += margin.left + margin.right + padding.right + padding.left;
+  else
+    mw = -1;
+  if(mh > 0)
+    mh += margin.top + margin.bottom + padding.top + padding.bottom;
+  else
+    mh = -1;
   gtk_widget_set_size_request(range->band, mw, mh);
 
   dtgtk_range_select_redraw(range);

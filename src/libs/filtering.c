@@ -1183,7 +1183,6 @@ static gboolean _widget_init(dt_lib_filtering_rule_t *rule, const dt_collection_
     // remove button
     rule->w_close = dtgtk_button_new(dtgtk_cairo_paint_cancel, 0, NULL);
     gtk_widget_set_no_show_all(rule->w_close, TRUE);
-    gtk_widget_set_name(GTK_WIDGET(rule->w_close), "basics-link");
     g_object_set_data(G_OBJECT(rule->w_close), "rule", rule);
     gtk_widget_set_tooltip_text(rule->w_close,
                                 _("remove this collect rule\nctrl-click to pin into the top toolbar"));
@@ -1599,9 +1598,9 @@ static gboolean _sort_init(_widgets_sort_t *sort, const dt_collection_sort_t sor
   {
     sort->lib = d;
     sort->box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_widget_set_hexpand(sort->box, TRUE);
     gtk_widget_set_name(sort->box, "collect-sort-widget");
     sort->sort = dt_bauhaus_combobox_new(NULL);
-    if(!top) dt_bauhaus_widget_set_label(sort->sort, NULL, N_("sort by"));
     gtk_widget_set_tooltip_text(sort->sort, _("determine the sort order of shown images"));
     g_signal_connect(G_OBJECT(sort->sort), "value-changed", G_CALLBACK(_sort_combobox_changed), sort);
 
@@ -1640,7 +1639,6 @@ static gboolean _sort_init(_widgets_sort_t *sort, const dt_collection_sort_t sor
 
     sort->close = dtgtk_button_new(dtgtk_cairo_paint_cancel, 0, NULL);
     gtk_widget_set_no_show_all(sort->close, TRUE);
-    gtk_widget_set_name(GTK_WIDGET(sort->close), "basics-link");
     g_object_set_data(G_OBJECT(sort->close), "sort", sort);
     gtk_widget_set_tooltip_text(sort->close, _("remove this sort order"));
     g_signal_connect(G_OBJECT(sort->close), "button-press-event", G_CALLBACK(_sort_close), self);
@@ -1686,7 +1684,7 @@ static void _sort_gui_update(dt_lib_module_t *self)
 
     // recreate main widget
     if(_sort_init(&d->sort[i], sort, sortorder, i, self))
-      gtk_box_pack_start(GTK_BOX(d->sort_box), d->sort[i].box, FALSE, TRUE, 0);
+      gtk_grid_attach(GTK_GRID(d->sort_box), d->sort[i].box, 1, i, 1, 1);
 
     // we also put the first sort item into the topbar
     if(i == 0)
@@ -1903,7 +1901,8 @@ void gui_init(dt_lib_module_t *self)
   GtkWidget *spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   gtk_widget_set_name(spacer, "collect-spacer2");
   gtk_box_pack_start(GTK_BOX(self->widget), spacer, TRUE, TRUE, 0);
-  d->sort_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  d->sort_box = gtk_grid_new();
+  gtk_grid_attach(GTK_GRID(d->sort_box), gtk_label_new(_("sort by")), 0, 0, 1, 1);
   gtk_widget_set_name(d->sort_box, "filter_sort_box");
   gtk_box_pack_start(GTK_BOX(self->widget), d->sort_box, TRUE, TRUE, 0);
 

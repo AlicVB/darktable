@@ -1542,6 +1542,14 @@ filechooser row:hover .sidebar-icon
   min-height: 1.8em;
   min-width: 10em;
 }
+#filter_sort_box
+{
+  padding: 0 0.2em;
+}
+#filter_sort_box label
+{
+  margin-right: 0.2em;
+}
 
 /*--------------------------------
   - Tree view (lists and tables) -
