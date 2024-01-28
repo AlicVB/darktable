@@ -2238,6 +2238,18 @@ static void _list_view(dt_lib_collect_rule_t *dr)
           value = _("unnamed");
         }
 
+        // for textual values, we want to search for exact match by default
+        gchar *exact_val = NULL;
+        if(property == DT_COLLECTION_PROP_CAMERA
+           || property == DT_COLLECTION_PROP_LENS)
+        {
+          exact_val = g_strdup_printf("\"%s\"", value);
+        }
+        else
+        {
+          exact_val = g_strdup(value);
+        }
+
         // replace invalid utf8 characters if any
         gchar *text = g_strdup(value);
         gchar *ptr = text;
@@ -2250,7 +2262,7 @@ static void _list_view(dt_lib_collect_rule_t *dr)
                            DT_LIB_COLLECT_COL_TEXT, folder,
                            DT_LIB_COLLECT_COL_ID, sqlite3_column_int(stmt, 1),
                            DT_LIB_COLLECT_COL_TOOLTIP, escaped_text,
-                           DT_LIB_COLLECT_COL_PATH, value,
+                           DT_LIB_COLLECT_COL_PATH, exact_val,
                            DT_LIB_COLLECT_COL_VISIBLE, TRUE,
                            DT_LIB_COLLECT_COL_COUNT, count,
                            DT_LIB_COLLECT_COL_UNREACHABLE, status,
@@ -2258,6 +2270,7 @@ static void _list_view(dt_lib_collect_rule_t *dr)
 
         g_free(text);
         g_free(escaped_text);
+        g_free(exact_val);
       }
       sqlite3_finalize(stmt);
     }
@@ -2443,6 +2456,16 @@ static void _set_tooltip(dt_lib_collect_rule_t *d)
          "shift+click to include only the current folder (no suffix)\n"
          /* xgettext:no-c-format */
          "ctrl+click to include only sub-folders (suffix `|%')"));
+  }
+  else if(property == DT_COLLECTION_PROP_CAMERA
+          || property == DT_COLLECTION_PROP_LENS)
+  {
+    gtk_widget_set_tooltip_text
+      (d->text,
+       /* xgettext:no-c-format */
+       _("by default start and end wildcards are auto-applied\n"
+         /* xgettext:no-c-format */
+         "starting or ending with a double quote disables the corresponding wildcard"));
   }
   else
   {
