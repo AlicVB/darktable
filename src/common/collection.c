@@ -1231,19 +1231,27 @@ void dt_collection_split_operator_exposure(const gchar *input,
   g_regex_unref(regex);
 }
 
-static gchar *_add_wildcards(const gchar *text)
+static gchar *_add_wildcards(gchar **elems, const int i)
 {
+  // no prefix/suffix double quotes means wilcards
+  // so we remove the double quotes if any and add % otherwise
+  // note that due to how we split the value in case of multiple elements
+  // double quote are already removed at split positions
   gchar *cam1 = NULL;
   gchar *cam2 = NULL;
-  if(g_str_has_prefix(text, "\""))
-    cam1 = g_utf8_substring(text, 1, strlen(text));
+  if(g_str_has_prefix(elems[i], "\""))
+    cam1 = g_utf8_substring(elems[i], 1, strlen(elems[i]));
+  else if(i == 0)
+    cam1 = g_strdup_printf("%%%s", elems[i]);
   else
-    cam1 = g_strdup_printf("%%%s", text);
+    cam1 = g_strdup(elems[i]);
 
   if(g_str_has_suffix(cam1, "\""))
     cam2 = g_utf8_substring(cam1, 0, strlen(cam1)-1);
-  else
+  else if(i == g_strv_length(elems) - 1)
     cam2 = g_strdup_printf("%s%%", cam1);
+  else
+    cam2 = g_strdup(cam1);
 
   g_free(cam1);
   return cam2;
@@ -1500,7 +1508,7 @@ static gchar *get_query_string(const dt_collection_properties_t property, const 
     case DT_COLLECTION_PROP_CAMERA: // camera
       query = g_strdup("(");
       // handle the possibility of multiple values
-      elems = g_strsplit(escaped_text, ",", -1);
+      elems = g_strsplit(escaped_text, "\",\"", -1);
       for(int i = 0; i < g_strv_length(elems); i++)
       {
         // if its undefined
@@ -1516,7 +1524,7 @@ static gchar *get_query_string(const dt_collection_properties_t property, const 
         }
         else
         {
-          gchar *cam = _add_wildcards(elems[i]);
+          gchar *cam = _add_wildcards(elems, i);
           query = dt_util_dstrcat(query,
                                   "%scamera_id IN (SELECT id FROM main.cameras WHERE maker || ' ' || model LIKE '%s')",
                                   i>0?" OR ":"", cam);
@@ -1613,7 +1621,7 @@ static gchar *get_query_string(const dt_collection_properties_t property, const 
     case DT_COLLECTION_PROP_LENS: // lens
       query = g_strdup("(");
       // handle the possibility of multiple values
-      elems = g_strsplit(escaped_text, ",", -1);
+      elems = g_strsplit(escaped_text, "\",\"", -1);
       for(int i = 0; i < g_strv_length(elems); i++)
       {
         if(!g_strcmp0(elems[i], _("unnamed")))
@@ -1625,7 +1633,7 @@ static gchar *get_query_string(const dt_collection_properties_t property, const 
         }
         else
         {
-          gchar *lens = _add_wildcards(elems[i]);
+          gchar *lens = _add_wildcards(elems, i);
           query = dt_util_dstrcat(query,
                                   "%slens_id IN (SELECT id FROM main.lens WHERE name LIKE '%s')",
                                   i>0?" OR ":"", lens);
